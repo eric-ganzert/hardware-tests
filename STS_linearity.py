@@ -1,11 +1,12 @@
 
 import json
 import os
-
-no_resistor_data = []
-file1 = "with resistor/"
+import math
 
 with_resistor_data = []
+file1 = "with resistor/"
+
+no_resistor_data = []
 file2 = "no resistor/"
 
 VIS_STS_SERIAL_NUM = "STSV0_S09004"
@@ -37,6 +38,10 @@ def extract_STS_data(data_list):
         
     return result
 
+def order_integrationTime(list):
+    result = sorted(list, key=lambda k: k[1]['integrationTime'])
+    return result
+
 def order_data(list):
     NIR_STS = []
     VIS_STS = []
@@ -53,20 +58,50 @@ def order_data(list):
     result.append(NIR_STS)
     return result
 
+def find_linearity(x, wavelength, y):
+    #x = integration_times
+    #y = response_magnitude
+    
+    n = len(x)
+    intercept_numerator = (sum(y)*(sum(square_list(x))))-(sum(x) * dot_product(x, y))
+    denominator = (n*sum(square_list(x))) - sum(x)*sum(x)
+    slope_numerator = (n*dot_product(x, y)) - (sum(x)*sum(y))
+    
+    slope = slope_numerator/denominator
+    intercept = intercept_numerator/denominator
+    
+    r = (n*dot_product(x, y) - (sum(x)*sum(y))) / (math.sqrt((n*sum(square_list(x)) - (sum(x)*sum(x)))
+                                                               *(n*sum(square_list(y)) - (sum(y)*sum(y)))))
+    r_squared = r*r
+    
+    return {"wavelength": wavelength, "slope": slope, "intercept": intercept, "r_squared": r_squared}
+    
+def square_list(list):
+    return [i**2 for i in list]
+
+def dot_product(x, y):
+    return sum(i[0] * i[1] for i in zip(x, y))
+    
 #def linear_regression(x, y):
     
-    
+#main program begins here    
                 
+x = [1, 2, 3, 4]
+y = [2, 4, 6, 8]
+
+#print(find_linearity(x, 100, y))
+#raw_input(".")
         
             
-get_raw_data(file1, no_resistor_data)
-get_raw_data(file2, with_resistor_data)
+get_raw_data(file1, with_resistor_data)
+get_raw_data(file2, no_resistor_data)
 
-STS_data1 = extract_STS_data(no_resistor_data)
-#print(len(STS_data1))
-STS_data2 = extract_STS_data(with_resistor_data)
+STS_data1 = extract_STS_data(with_resistor_data)
+STS_data2 = extract_STS_data(no_resistor_data)
 
 ordered_data = []
+    
+STS_data1 = order_integrationTime(STS_data1)
 
 for item in STS_data1:
     new = order_data(item)
@@ -76,24 +111,43 @@ a = []
 
 for i in range(0, 1024):
     a.append([])
-    for j in range(0, 10):
+    for j in range(0, 2):
         a[i].append([])
-        for k in range(0, 2):
+        for k in range(0, 3):
             a[i][j].append([])
-        
-print(len(a))
-print(len(a[0]))
-    
+
+linearity_NIR = []
+linearity_VIS = []
+
 for intensity in range(0, len(ordered_data)): 
     for STS_type in range(0, len(ordered_data[intensity])):
         for dataPoint in range(0, len(ordered_data[intensity][STS_type])):
-            a[dataPoint][intensity][0].append(ordered_data[intensity][STS_type][dataPoint]['wavelengths'])
-            a[dataPoint][intensity][1].append(ordered_data[intensity][STS_type][dataPoint]['Halogen'])
-    
-print(a[0][0][0])
-raw_input(".")
-            #print(ordered_data[intensity][STS_type][dataPoint])
-            #raw_input(".")
+            (a[dataPoint][STS_type][0]).append(ordered_data[intensity][STS_type][dataPoint]['integrationTime'])
+            (a[dataPoint][STS_type][1]).append(ordered_data[intensity][STS_type][dataPoint]['wavelengths'])
+            (a[dataPoint][STS_type][2]).append(ordered_data[intensity][STS_type][dataPoint]['Halogen'])
+            
+
+for i in range(0, 1024):
+    for j in range(0, 2):
+        result = find_linearity(a[i][j][0], a[i][j][1][0], a[i][j][2])
+        if j==0:
+            linearity_NIR.append(result)
+        if j==1:
+            linearity_VIS.append(result)
+            
+with open("NIR_linearity.txt", 'w') as f:
+    for item in linearity_NIR:
+        json.dump(item, f)
+        f.write('\n')
+    f.close()
+
+with open("VIS_linearity.txt", 'w') as f:
+    for item in linearity_VIS:
+        json.dump(item, f)
+        f.write('\n')
+    f.close()
+            
+
             
 
 
